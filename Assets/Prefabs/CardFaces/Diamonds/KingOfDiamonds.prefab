@@ -66,7 +66,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: -407623809787531348, guid: b6d4a2bf1e6cf02409def6e39fc70076, type: 3}
+  m_Sprite: {fileID: 8817427215634679644, guid: b315f28bdca9cb442a30230c3fce16ce, type: 3}
   m_Type: 0
   m_PreserveAspect: 1
   m_FillCenter: 1
@@ -304,7 +304,7 @@ GameObject:
   - component: {fileID: 4132845374223140069}
   - component: {fileID: 404130344431792101}
   m_Layer: 5
-  m_Name: CardVisual
+  m_Name: KingOfDiamonds
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
