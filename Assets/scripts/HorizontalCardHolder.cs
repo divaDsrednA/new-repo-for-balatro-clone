@@ -5,10 +5,13 @@ using Unity.VisualScripting;
 using UnityEngine;
 using DG.Tweening;
 using System.Linq;
-
+using UnityEngine.UI;
+using System.Linq;
 public class HorizontalCardHolder : MonoBehaviour
 {
-
+[Header("Action Buttons")]
+[SerializeField] private Button playButton;
+[SerializeField] private Button discardButton;
     [SerializeField] private Card selectedCard;
     [SerializeReference] private Card hoveredCard;
 
@@ -21,6 +24,63 @@ public class HorizontalCardHolder : MonoBehaviour
 
     bool isCrossing = false;
     [SerializeField] private bool tweenCardReturn = true;
+
+    private void OnCardSelectionChanged(Card card, bool isSelected)
+{
+    UpdateActionButtons();
+}
+
+private void UpdateActionButtons()
+{
+    bool hasSelectedCards = cards.Any(card => card != null && card.selected);
+
+    if (playButton != null)
+        playButton.interactable = hasSelectedCards;
+
+    if (discardButton != null)
+        discardButton.interactable = hasSelectedCards;
+}
+
+private List<Card> GetSelectedCards()
+{
+    return cards.Where(card => card != null && card.selected).ToList();
+}
+
+public void PlaySelectedCards()
+{
+    List<Card> selectedCards = GetSelectedCards();
+
+    if (selectedCards.Count == 0)
+        return;
+
+    foreach (Card card in selectedCards)
+    {
+        cards.Remove(card);
+
+        // remove the slot/card from the hand
+        Destroy(card.transform.parent.gameObject);
+    }
+
+    UpdateActionButtons();
+}
+
+public void DiscardSelectedCards()
+{
+    List<Card> selectedCards = GetSelectedCards();
+
+    if (selectedCards.Count == 0)
+        return;
+
+    foreach (Card card in selectedCards)
+    {
+        cards.Remove(card);
+
+        // remove the slot/card from the hand
+        Destroy(card.transform.parent.gameObject);
+    }
+
+    UpdateActionButtons();
+}
 
     void Start()
     {
@@ -55,6 +115,18 @@ public class HorizontalCardHolder : MonoBehaviour
                     cards[i].cardVisual.UpdateIndex(transform.childCount);
             }
         }
+        if (playButton != null)
+    playButton.onClick.AddListener(PlaySelectedCards);
+
+if (discardButton != null)
+    discardButton.onClick.AddListener(DiscardSelectedCards);
+
+foreach (Card card in cards)
+{
+    card.SelectEvent.AddListener(OnCardSelectionChanged);
+}
+
+UpdateActionButtons();
     }
 
     private void BeginDrag(Card card)
