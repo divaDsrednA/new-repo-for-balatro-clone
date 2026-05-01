@@ -1,132 +1,167 @@
-using System;
 using System.Collections;
 using System.Collections.Generic;
-using Unity.VisualScripting;
-using UnityEngine;
+using System.Linq;
 using DG.Tweening;
-using System.Linq;
+using UnityEngine;
 using UnityEngine.UI;
-using System.Linq;
+
 public class HorizontalCardHolder : MonoBehaviour
 {
-[Header("Action Buttons")]
-[SerializeField] private Button playButton;
-[SerializeField] private Button discardButton;
+    [Header("Action Buttons")]
+    [SerializeField] private Button playButton;
+    [SerializeField] private Button discardButton;
+
     [SerializeField] private Card selectedCard;
-    [SerializeReference] private Card hoveredCard;
+    [SerializeField] private Card hoveredCard;
 
     [SerializeField] private GameObject slotPrefab;
-    private RectTransform rect;
-
-    [Header("Spawn Settings")]
     [SerializeField] private int cardsToSpawn = 5;
-    public List<Card> cards;
-
-    bool isCrossing = false;
     [SerializeField] private bool tweenCardReturn = true;
 
-    private void OnCardSelectionChanged(Card card, bool isSelected)
-{
-    UpdateActionButtons();
-}
-
-private void UpdateActionButtons()
-{
-    bool hasSelectedCards = cards.Any(card => card != null && card.selected);
-
-    if (playButton != null)
-        playButton.interactable = hasSelectedCards;
-
-    if (discardButton != null)
-        discardButton.interactable = hasSelectedCards;
-}
-
-private List<Card> GetSelectedCards()
-{
-    return cards.Where(card => card != null && card.selected).ToList();
-}
-
-public void PlaySelectedCards()
-{
-    List<Card> selectedCards = GetSelectedCards();
-
-    if (selectedCards.Count == 0)
-        return;
-
-    foreach (Card card in selectedCards)
-    {
-        cards.Remove(card);
-
-        // remove the slot/card from the hand
-        Destroy(card.transform.parent.gameObject);
-    }
-
-    UpdateActionButtons();
-}
-
-public void DiscardSelectedCards()
-{
-    List<Card> selectedCards = GetSelectedCards();
-
-    if (selectedCards.Count == 0)
-        return;
-
-    foreach (Card card in selectedCards)
-    {
-        cards.Remove(card);
-
-        // remove the slot/card from the hand
-        Destroy(card.transform.parent.gameObject);
-    }
-
-    UpdateActionButtons();
-}
+    private RectTransform rect;
+    public List<Card> cards = new List<Card>();
+    private bool isCrossing = false;
 
     void Start()
     {
-        for (int i = 0; i < cardsToSpawn; i++)
+        rect = GetComponent<RectTransform>();
+
+        // Create empty slots only if none exist yet
+        if (transform.childCount == 0)
         {
-            Instantiate(slotPrefab, transform);
+            for (int i = 0; i < cardsToSpawn; i++)
+            {
+                Instantiate(slotPrefab, transform);
+            }
         }
 
-        rect = GetComponent<RectTransform>();
-        cards = GetComponentsInChildren<Card>().ToList();
+        RefreshCardList();
+        HookupButtons();
+        UpdateActionButtons();
 
-        int cardCount = 0;
+        StartCoroutine(UpdateVisualIndexesNextFrame());
+    }
+
+    private void HookupButtons()
+    {
+        if (playButton != null)
+        {
+            playButton.onClick.RemoveListener(PlaySelectedCards);
+            playButton.onClick.AddListener(PlaySelectedCards);
+        }
+
+        if (discardButton != null)
+        {
+            discardButton.onClick.RemoveListener(DiscardSelectedCards);
+            discardButton.onClick.AddListener(DiscardSelectedCards);
+        }
+    }
+
+    private IEnumerator UpdateVisualIndexesNextFrame()
+    {
+        yield return null;
 
         foreach (Card card in cards)
         {
+            if (card != null && card.cardVisual != null)
+            {
+                card.cardVisual.UpdateIndex(transform.childCount);
+            }
+        }
+    }
+
+    public void RefreshCardList()
+    {
+        cards = GetComponentsInChildren<Card>().ToList();
+
+        for (int i = 0; i < cards.Count; i++)
+        {
+            Card card = cards[i];
+
+            // remove first so we don't stack duplicate listeners
+            card.PointerEnterEvent.RemoveListener(CardPointerEnter);
+            card.PointerExitEvent.RemoveListener(CardPointerExit);
+            card.BeginDragEvent.RemoveListener(BeginDrag);
+            card.EndDragEvent.RemoveListener(EndDrag);
+            card.SelectEvent.RemoveListener(OnCardSelectionChanged);
+
             card.PointerEnterEvent.AddListener(CardPointerEnter);
             card.PointerExitEvent.AddListener(CardPointerExit);
             card.BeginDragEvent.AddListener(BeginDrag);
             card.EndDragEvent.AddListener(EndDrag);
-            card.name = cardCount.ToString();
-            cardCount++;
+            card.SelectEvent.AddListener(OnCardSelectionChanged);
+
+            card.name = i.ToString();
         }
 
-        StartCoroutine(Frame());
+        UpdateActionButtons();
+    }
 
-        IEnumerator Frame()
-        {
-            yield return new WaitForSecondsRealtime(.1f);
-            for (int i = 0; i < cards.Count; i++)
-            {
-                if (cards[i].cardVisual != null)
-                    cards[i].cardVisual.UpdateIndex(transform.childCount);
-            }
-        }
+    private void OnCardSelectionChanged(Card card, bool isSelected)
+    {
+        UpdateActionButtons();
+    }
+
+    private void UpdateActionButtons()
+    {
+        bool hasSelectedCards = cards.Any(card => card != null && card.selected);
+
         if (playButton != null)
-    playButton.onClick.AddListener(PlaySelectedCards);
+            playButton.interactable = hasSelectedCards;
 
-if (discardButton != null)
-    discardButton.onClick.AddListener(DiscardSelectedCards);
+        if (discardButton != null)
+            discardButton.interactable = hasSelectedCards;
+    }
 
-foreach (Card card in cards)
-{
-    card.SelectEvent.AddListener(OnCardSelectionChanged);
-}
+    private List<Card> GetSelectedCards()
+    {
+        return cards.Where(card => card != null && card.selected).ToList();
+    }
 
-UpdateActionButtons();
+    public void PlaySelectedCards()
+    {
+        List<Card> selectedCards = GetSelectedCards();
+
+        if (selectedCards.Count == 0)
+            return;
+
+        foreach (Card card in selectedCards)
+        {
+            if (card == null)
+                continue;
+
+            cards.Remove(card);
+
+            if (card.transform.parent != null)
+                Destroy(card.transform.parent.gameObject);
+            else
+                Destroy(card.gameObject);
+        }
+
+        UpdateActionButtons();
+    }
+
+    public void DiscardSelectedCards()
+    {
+        List<Card> selectedCards = GetSelectedCards();
+
+        if (selectedCards.Count == 0)
+            return;
+
+        foreach (Card card in selectedCards)
+        {
+            if (card == null)
+                continue;
+
+            cards.Remove(card);
+
+            if (card.transform.parent != null)
+                Destroy(card.transform.parent.gameObject);
+            else
+                Destroy(card.gameObject);
+        }
+
+        UpdateActionButtons();
     }
 
     private void BeginDrag(Card card)
@@ -134,29 +169,32 @@ UpdateActionButtons();
         selectedCard = card;
     }
 
-
-    void EndDrag(Card card)
+    private void EndDrag(Card card)
     {
         if (selectedCard == null)
             return;
 
-        selectedCard.transform.DOLocalMove(selectedCard.selected ? new Vector3(0,selectedCard.selectionOffset,0) : Vector3.zero, tweenCardReturn ? .15f : 0).SetEase(Ease.OutBack);
+        selectedCard.transform.DOLocalMove(
+            selectedCard.selected ? new Vector3(0, selectedCard.selectionOffset, 0) : Vector3.zero,
+            tweenCardReturn ? 0.15f : 0f
+        ).SetEase(Ease.OutBack);
 
+        // force layout refresh
         rect.sizeDelta += Vector2.right;
         rect.sizeDelta -= Vector2.right;
 
         selectedCard = null;
-
     }
 
-    void CardPointerEnter(Card card)
+    private void CardPointerEnter(Card card)
     {
         hoveredCard = card;
     }
 
-    void CardPointerExit(Card card)
+    private void CardPointerExit(Card card)
     {
-        hoveredCard = null;
+        if (hoveredCard == card)
+            hoveredCard = null;
     }
 
     void Update()
@@ -165,9 +203,15 @@ UpdateActionButtons();
         {
             if (hoveredCard != null)
             {
-                Destroy(hoveredCard.transform.parent.gameObject);
                 cards.Remove(hoveredCard);
 
+                if (hoveredCard.transform.parent != null)
+                    Destroy(hoveredCard.transform.parent.gameObject);
+                else
+                    Destroy(hoveredCard.gameObject);
+
+                hoveredCard = null;
+                UpdateActionButtons();
             }
         }
 
@@ -175,18 +219,20 @@ UpdateActionButtons();
         {
             foreach (Card card in cards)
             {
-                card.Deselect();
+                if (card != null)
+                    card.Deselect();
             }
+
+            UpdateActionButtons();
         }
 
-        if (selectedCard == null)
-            return;
-
-        if (isCrossing)
+        if (selectedCard == null || isCrossing)
             return;
 
         for (int i = 0; i < cards.Count; i++)
         {
+            if (cards[i] == null || cards[i] == selectedCard)
+                continue;
 
             if (selectedCard.transform.position.x > cards[i].transform.position.x)
             {
@@ -208,30 +254,34 @@ UpdateActionButtons();
         }
     }
 
-    void Swap(int index)
+    private void Swap(int index)
     {
+        if (selectedCard == null || index < 0 || index >= cards.Count || cards[index] == null)
+            return;
+
         isCrossing = true;
 
         Transform focusedParent = selectedCard.transform.parent;
         Transform crossedParent = cards[index].transform.parent;
 
         cards[index].transform.SetParent(focusedParent);
-        cards[index].transform.localPosition = cards[index].selected ? new Vector3(0, cards[index].selectionOffset, 0) : Vector3.zero;
+        cards[index].transform.localPosition =
+            cards[index].selected ? new Vector3(0, cards[index].selectionOffset, 0) : Vector3.zero;
+
         selectedCard.transform.SetParent(crossedParent);
 
         isCrossing = false;
 
-        if (cards[index].cardVisual == null)
-            return;
+        if (cards[index].cardVisual != null)
+        {
+            bool swapIsRight = cards[index].ParentIndex() > selectedCard.ParentIndex();
+            cards[index].cardVisual.Swap(swapIsRight ? -1 : 1);
+        }
 
-        bool swapIsRight = cards[index].ParentIndex() > selectedCard.ParentIndex();
-        cards[index].cardVisual.Swap(swapIsRight ? -1 : 1);
-
-        //Updated Visual Indexes
         foreach (Card card in cards)
         {
-            card.cardVisual.UpdateIndex(transform.childCount);
+            if (card != null && card.cardVisual != null)
+                card.cardVisual.UpdateIndex(transform.childCount);
         }
     }
-
 }

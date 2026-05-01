@@ -1,11 +1,7 @@
 using System;
 using UnityEngine;
 using DG.Tweening;
-using System.Collections;
-using UnityEngine.EventSystems;
-using Unity.Collections;
 using UnityEngine.UI;
-using Unity.VisualScripting;
 
 public class CardVisual : MonoBehaviour
 {
@@ -16,7 +12,7 @@ public class CardVisual : MonoBehaviour
     private Transform cardTransform;
     private Vector3 rotationDelta;
     private int savedIndex;
-    Vector3 movementDelta;
+    private Vector3 movementDelta;
     private Canvas canvas;
 
     [Header("References")]
@@ -48,7 +44,7 @@ public class CardVisual : MonoBehaviour
     [Header("Select Parameters")]
     [SerializeField] private float selectPunchAmount = 20;
 
-    [Header("Hober Parameters")]
+    [Header("Hover Parameters")]
     [SerializeField] private float hoverPunchAngle = 5;
     [SerializeField] private float hoverTransition = .15f;
 
@@ -61,24 +57,27 @@ public class CardVisual : MonoBehaviour
     [Header("Curve")]
     [SerializeField] private CurveParameters curve;
 
+    [Header("Card Display")]
+    [SerializeField] private Sprite[] cardSprites;
+
     private float curveYOffset;
     private float curveRotationOffset;
-    private Coroutine pressCoroutine;
 
     private void Start()
     {
-        shadowDistance = visualShadow.localPosition;
+        if (visualShadow != null)
+            shadowDistance = visualShadow.localPosition;
     }
 
     public void Initialize(Card target, int index = 0)
     {
-        //Declarations
         parentCard = target;
         cardTransform = target.transform;
         canvas = GetComponent<Canvas>();
-        shadowCanvas = visualShadow.GetComponent<Canvas>();
 
-        //Event Listening
+        if (visualShadow != null)
+            shadowCanvas = visualShadow.GetComponent<Canvas>();
+
         parentCard.PointerEnterEvent.AddListener(PointerEnter);
         parentCard.PointerExitEvent.AddListener(PointerExit);
         parentCard.BeginDragEvent.AddListener(BeginDrag);
@@ -87,24 +86,24 @@ public class CardVisual : MonoBehaviour
         parentCard.PointerUpEvent.AddListener(PointerUp);
         parentCard.SelectEvent.AddListener(Select);
 
-        //Initialization
         initalize = true;
     }
 
     public void UpdateIndex(int length)
     {
-        transform.SetSiblingIndex(parentCard.transform.parent.GetSiblingIndex());
+        if (parentCard != null && parentCard.transform.parent != null)
+            transform.SetSiblingIndex(parentCard.transform.parent.GetSiblingIndex());
     }
 
     void Update()
     {
-        if (!initalize || parentCard == null) return;
+        if (!initalize || parentCard == null)
+            return;
 
         HandPositioning();
         SmoothFollow();
         FollowRotation();
         CardTilt();
-
     }
 
     private void HandPositioning()
@@ -116,13 +115,13 @@ public class CardVisual : MonoBehaviour
 
     private void SmoothFollow()
     {
-        Vector3 verticalOffset = (Vector3.up * (parentCard.isDragging ? 0 : curveYOffset));
+        Vector3 verticalOffset = Vector3.up * (parentCard.isDragging ? 0 : curveYOffset);
         transform.position = Vector3.Lerp(transform.position, cardTransform.position + verticalOffset, followSpeed * Time.deltaTime);
     }
 
     private void FollowRotation()
     {
-        Vector3 movement = (transform.position - cardTransform.position);
+        Vector3 movement = transform.position - cardTransform.position;
         movementDelta = Vector3.Lerp(movementDelta, movement, 25 * Time.deltaTime);
         Vector3 movementRotation = (parentCard.isDragging ? movementDelta : movement) * rotationAmount;
         rotationDelta = Vector3.Lerp(rotationDelta, movementRotation, rotationSpeed * Time.deltaTime);
@@ -137,7 +136,7 @@ public class CardVisual : MonoBehaviour
 
         Vector3 offset = transform.position - Camera.main.ScreenToWorldPoint(Input.mousePosition);
         float tiltX = parentCard.isHovering ? ((offset.y * -1) * manualTiltAmount) : 0;
-        float tiltY = parentCard.isHovering ? ((offset.x) * manualTiltAmount) : 0;
+        float tiltY = parentCard.isHovering ? (offset.x * manualTiltAmount) : 0;
         float tiltZ = parentCard.isDragging ? tiltParent.eulerAngles.z : (curveRotationOffset * (curve.rotationInfluence * parentCard.SiblingAmount()));
 
         float lerpX = Mathf.LerpAngle(tiltParent.eulerAngles.x, tiltX + (sine * autoTiltAmount), tiltSpeed * Time.deltaTime);
@@ -151,12 +150,12 @@ public class CardVisual : MonoBehaviour
     {
         DOTween.Kill(2, true);
         float dir = state ? 1 : 0;
+
         shakeParent.DOPunchPosition(shakeParent.up * selectPunchAmount * dir, scaleTransition, 10, 1);
-        shakeParent.DOPunchRotation(Vector3.forward * (hoverPunchAngle/2), hoverTransition, 20, 1).SetId(2);
+        shakeParent.DOPunchRotation(Vector3.forward * (hoverPunchAngle / 2), hoverTransition, 20, 1).SetId(2);
 
-        if(scaleAnimations)
+        if (scaleAnimations)
             transform.DOScale(scaleOnHover, scaleTransition).SetEase(scaleEase);
-
     }
 
     public void Swap(float dir = 1)
@@ -170,21 +169,24 @@ public class CardVisual : MonoBehaviour
 
     private void BeginDrag(Card card)
     {
-        if(scaleAnimations)
+        if (scaleAnimations)
             transform.DOScale(scaleOnSelect, scaleTransition).SetEase(scaleEase);
 
-        canvas.overrideSorting = true;
+        if (canvas != null)
+            canvas.overrideSorting = true;
     }
 
     private void EndDrag(Card card)
     {
-        canvas.overrideSorting = false;
+        if (canvas != null)
+            canvas.overrideSorting = false;
+
         transform.DOScale(1, scaleTransition).SetEase(scaleEase);
     }
 
     private void PointerEnter(Card card)
     {
-        if(scaleAnimations)
+        if (scaleAnimations)
             transform.DOScale(scaleOnHover, scaleTransition).SetEase(scaleEase);
 
         DOTween.Kill(2, true);
@@ -199,21 +201,57 @@ public class CardVisual : MonoBehaviour
 
     private void PointerUp(Card card, bool longPress)
     {
-        if(scaleAnimations)
+        if (scaleAnimations)
             transform.DOScale(longPress ? scaleOnHover : scaleOnSelect, scaleTransition).SetEase(scaleEase);
-        canvas.overrideSorting = false;
 
-        visualShadow.localPosition = shadowDistance;
-        shadowCanvas.overrideSorting = true;
+        if (canvas != null)
+            canvas.overrideSorting = false;
+
+        if (visualShadow != null)
+            visualShadow.localPosition = shadowDistance;
+
+        if (shadowCanvas != null)
+            shadowCanvas.overrideSorting = true;
     }
 
     private void PointerDown(Card card)
     {
-        if(scaleAnimations)
+        if (scaleAnimations)
             transform.DOScale(scaleOnSelect, scaleTransition).SetEase(scaleEase);
-            
-        visualShadow.localPosition += (-Vector3.up * shadowOffset);
-        shadowCanvas.overrideSorting = false;
+
+        if (visualShadow != null)
+            visualShadow.localPosition += (-Vector3.up * shadowOffset);
+
+        if (shadowCanvas != null)
+            shadowCanvas.overrideSorting = false;
     }
 
+    public void UpdateVisual(CardData data)
+    {
+        if (data == null)
+            return;
+
+        if (cardImage == null)
+            return;
+
+        int spriteIndex = GetSpriteIndex(data.rank, data.suit);
+
+        if (cardSprites != null && spriteIndex >= 0 && spriteIndex < cardSprites.Length)
+            cardImage.sprite = cardSprites[spriteIndex];
+    }
+
+    private int GetSpriteIndex(int rank, Suit suit)
+    {
+        int suitOffset = 0;
+
+        switch (suit)
+        {
+            case Suit.Hearts: suitOffset = 0; break;
+            case Suit.Diamonds: suitOffset = 13; break;
+            case Suit.Clubs: suitOffset = 26; break;
+            case Suit.Spades: suitOffset = 39; break;
+        }
+
+        return suitOffset + (rank - 1);
+    }
 }

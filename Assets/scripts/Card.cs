@@ -1,12 +1,11 @@
-
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.EventSystems;
-using System.Collections.Generic;
 using System.Collections;
 using UnityEngine.UI;
 
-public class Card : MonoBehaviour, IDragHandler, IBeginDragHandler, IEndDragHandler, IPointerEnterHandler, IPointerExitHandler, IPointerUpHandler, IPointerDownHandler
+public class Card : MonoBehaviour, IDragHandler, IBeginDragHandler, IEndDragHandler,
+    IPointerEnterHandler, IPointerExitHandler, IPointerUpHandler, IPointerDownHandler
 {
     private Canvas canvas;
     private Image imageComponent;
@@ -33,13 +32,16 @@ public class Card : MonoBehaviour, IDragHandler, IBeginDragHandler, IEndDragHand
     [HideInInspector] public bool wasDragged;
 
     [Header("Events")]
-    [HideInInspector] public UnityEvent<Card> PointerEnterEvent;
-    [HideInInspector] public UnityEvent<Card> PointerExitEvent;
-    [HideInInspector] public UnityEvent<Card, bool> PointerUpEvent;
-    [HideInInspector] public UnityEvent<Card> PointerDownEvent;
-    [HideInInspector] public UnityEvent<Card> BeginDragEvent;
-    [HideInInspector] public UnityEvent<Card> EndDragEvent;
-    [HideInInspector] public UnityEvent<Card, bool> SelectEvent;
+    [HideInInspector] public UnityEvent<Card> PointerEnterEvent = new UnityEvent<Card>();
+    [HideInInspector] public UnityEvent<Card> PointerExitEvent = new UnityEvent<Card>();
+    [HideInInspector] public UnityEvent<Card, bool> PointerUpEvent = new UnityEvent<Card, bool>();
+    [HideInInspector] public UnityEvent<Card> PointerDownEvent = new UnityEvent<Card>();
+    [HideInInspector] public UnityEvent<Card> BeginDragEvent = new UnityEvent<Card>();
+    [HideInInspector] public UnityEvent<Card> EndDragEvent = new UnityEvent<Card>();
+    [HideInInspector] public UnityEvent<Card, bool> SelectEvent = new UnityEvent<Card, bool>();
+
+    public CardData data;
+    public CardVisual visual;
 
     void Start()
     {
@@ -49,9 +51,16 @@ public class Card : MonoBehaviour, IDragHandler, IBeginDragHandler, IEndDragHand
         if (!instantiateVisual)
             return;
 
-        visualHandler = FindObjectOfType<VisualCardsHandler>();
-        cardVisual = Instantiate(cardVisualPrefab, visualHandler ? visualHandler.transform : canvas.transform).GetComponent<CardVisual>();
+        visualHandler = FindFirstObjectByType<VisualCardsHandler>();
+
+        Transform parentTransform = visualHandler != null ? visualHandler.transform : canvas.transform;
+        cardVisual = Instantiate(cardVisualPrefab, parentTransform).GetComponent<CardVisual>();
         cardVisual.Initialize(this);
+
+        visual = cardVisual;
+
+        if (data != null)
+            cardVisual.UpdateVisual(data);
     }
 
     void Update()
@@ -69,7 +78,10 @@ public class Card : MonoBehaviour, IDragHandler, IBeginDragHandler, IEndDragHand
 
     void ClampPosition()
     {
-        Vector2 screenBounds = Camera.main.ScreenToWorldPoint(new Vector3(Screen.width, Screen.height, Camera.main.transform.position.z));
+        Vector2 screenBounds = Camera.main.ScreenToWorldPoint(
+            new Vector3(Screen.width, Screen.height, Camera.main.transform.position.z)
+        );
+
         Vector3 clampedPosition = transform.position;
         clampedPosition.x = Mathf.Clamp(clampedPosition.x, -screenBounds.x, screenBounds.x);
         clampedPosition.y = Mathf.Clamp(clampedPosition.y, -screenBounds.y, screenBounds.y);
@@ -79,12 +91,13 @@ public class Card : MonoBehaviour, IDragHandler, IBeginDragHandler, IEndDragHand
     public void OnBeginDrag(PointerEventData eventData)
     {
         BeginDragEvent.Invoke(this);
+
         Vector2 mousePosition = Camera.main.ScreenToWorldPoint(Input.mousePosition);
         offset = mousePosition - (Vector2)transform.position;
+
         isDragging = true;
         canvas.GetComponent<GraphicRaycaster>().enabled = false;
         imageComponent.raycastTarget = false;
-
         wasDragged = true;
     }
 
@@ -95,17 +108,18 @@ public class Card : MonoBehaviour, IDragHandler, IBeginDragHandler, IEndDragHand
     public void OnEndDrag(PointerEventData eventData)
     {
         EndDragEvent.Invoke(this);
+
         isDragging = false;
         canvas.GetComponent<GraphicRaycaster>().enabled = true;
         imageComponent.raycastTarget = true;
 
         StartCoroutine(FrameWait());
+    }
 
-        IEnumerator FrameWait()
-        {
-            yield return new WaitForEndOfFrame();
-            wasDragged = false;
-        }
+    IEnumerator FrameWait()
+    {
+        yield return new WaitForEndOfFrame();
+        wasDragged = false;
     }
 
     public void OnPointerEnter(PointerEventData eventData)
@@ -119,7 +133,6 @@ public class Card : MonoBehaviour, IDragHandler, IBeginDragHandler, IEndDragHand
         PointerExitEvent.Invoke(this);
         isHovering = false;
     }
-
 
     public void OnPointerDown(PointerEventData eventData)
     {
@@ -136,36 +149,30 @@ public class Card : MonoBehaviour, IDragHandler, IBeginDragHandler, IEndDragHand
             return;
 
         pointerUpTime = Time.time;
+        bool longPress = pointerUpTime - pointerDownTime > 0.2f;
 
-        PointerUpEvent.Invoke(this, pointerUpTime - pointerDownTime > .2f);
+        PointerUpEvent.Invoke(this, longPress);
 
-        if (pointerUpTime - pointerDownTime > .2f)
-            return;
-
-        if (wasDragged)
+        if (longPress || wasDragged)
             return;
 
         selected = !selected;
         SelectEvent.Invoke(this, selected);
 
-        if (selected)
-            transform.localPosition += (cardVisual.transform.up * selectionOffset);
+        if (selected && cardVisual != null)
+            transform.localPosition += cardVisual.transform.up * selectionOffset;
         else
             transform.localPosition = Vector3.zero;
     }
 
     public void Deselect()
     {
-        if (selected)
-        {
-            selected = false;
-            if (selected)
-                transform.localPosition += (cardVisual.transform.up * 50);
-            else
-                transform.localPosition = Vector3.zero;
-        }
-    }
+        if (!selected)
+            return;
 
+        selected = false;
+        transform.localPosition = Vector3.zero;
+    }
 
     public int SiblingAmount()
     {
@@ -179,12 +186,28 @@ public class Card : MonoBehaviour, IDragHandler, IBeginDragHandler, IEndDragHand
 
     public float NormalizedPosition()
     {
-        return transform.parent.CompareTag("Slot") ? ExtensionMethods.Remap((float)ParentIndex(), 0, (float)(transform.parent.parent.childCount - 1), 0, 1) : 0;
+        return transform.parent.CompareTag("Slot")
+            ? ExtensionMethods.Remap((float)ParentIndex(), 0, (float)(transform.parent.parent.childCount - 1), 0, 1)
+            : 0;
+    }
+
+    public void SetData(CardData newData)
+    {
+        data = newData;
+
+        if (visual == null)
+            visual = GetComponent<CardVisual>();
+
+        if (visual == null)
+            visual = cardVisual;
+
+        if (visual != null)
+            visual.UpdateVisual(data);
     }
 
     private void OnDestroy()
     {
-        if(cardVisual != null)
-        Destroy(cardVisual.gameObject);
+        if (cardVisual != null)
+            Destroy(cardVisual.gameObject);
     }
 }
