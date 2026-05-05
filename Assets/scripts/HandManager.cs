@@ -7,19 +7,16 @@ public class HandManager : MonoBehaviour
     public GameObject cardPrefab;
     public HorizontalCardHolder cardHolder;
 
-    private List<Card> cardsInHand = new List<Card>();
+    private readonly List<Card> cardsInHand = new List<Card>();
 
     public void AddCardToHand(CardData data)
     {
-        if (cardHolder == null)
-        {
-            Debug.LogError("HandManager: cardHolder is not assigned.");
+        if (data == null)
             return;
-        }
 
-        if (cardPrefab == null)
+        if (cardPrefab == null || cardHolder == null)
         {
-            Debug.LogError("HandManager: cardPrefab is not assigned.");
+            Debug.LogError("HandManager: cardPrefab or cardHolder is not assigned.");
             return;
         }
 
@@ -27,11 +24,12 @@ public class HandManager : MonoBehaviour
 
         if (emptySlot == null)
         {
-            Debug.LogWarning("HandManager: No empty slot available in HorizontalCardHolder.");
+            Debug.LogWarning("HandManager: No empty hand slot available.");
             return;
         }
 
         GameObject newCardObject = Instantiate(cardPrefab, emptySlot);
+
         newCardObject.transform.localPosition = Vector3.zero;
         newCardObject.transform.localRotation = Quaternion.identity;
         newCardObject.transform.localScale = Vector3.one;
@@ -40,15 +38,58 @@ public class HandManager : MonoBehaviour
 
         if (card == null)
         {
-            Debug.LogError("HandManager: Card prefab does not contain a Card component.");
+            Debug.LogError("HandManager: Card prefab has no Card component.");
             Destroy(newCardObject);
             return;
         }
 
         card.SetData(data);
-        cardsInHand.Add(card);
 
-        cardHolder.RefreshCardList();
+        if (!cardsInHand.Contains(card))
+            cardsInHand.Add(card);
+
+        RefreshHand();
+    }
+
+    public void AddCardToHandObject(Card card)
+    {
+        if (card == null || cardHolder == null)
+            return;
+
+        Transform emptySlot = GetEmptySlot();
+
+        if (emptySlot == null)
+        {
+            Debug.LogWarning("HandManager: No empty hand slot available.");
+            return;
+        }
+
+        card.transform.SetParent(emptySlot, false);
+        card.transform.localPosition = Vector3.zero;
+        card.transform.localRotation = Quaternion.identity;
+        card.transform.localScale = Vector3.one;
+
+        card.Deselect();
+
+        if (!cardsInHand.Contains(card))
+            cardsInHand.Add(card);
+
+        RefreshHand();
+    }
+
+    public void RemoveCardFromHand(Card card)
+    {
+        if (card == null)
+            return;
+
+        cardsInHand.Remove(card);
+
+        RefreshHand();
+    }
+
+    public List<Card> GetCardsInHand()
+    {
+        return cardsInHand;
     }
 
     private Transform GetEmptySlot()
@@ -57,30 +98,18 @@ public class HandManager : MonoBehaviour
         {
             Transform slot = cardHolder.transform.GetChild(i);
 
-            if (slot.GetComponent<Card>() == null && slot.childCount == 0)
-            {
+            if (slot.childCount == 0)
                 return slot;
-            }
         }
 
         return null;
     }
 
-    public void RemoveCardFromHand(Card card)
+    private void RefreshHand()
     {
-        if (cardsInHand.Contains(card))
-        {
-            cardsInHand.Remove(card);
-        }
+        cardsInHand.RemoveAll(card => card == null);
 
         if (cardHolder != null)
-        {
             cardHolder.RefreshCardList();
-        }
-    }
-
-    public List<Card> GetCardsInHand()
-    {
-        return cardsInHand;
     }
 }
