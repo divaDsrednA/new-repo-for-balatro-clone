@@ -11,6 +11,8 @@ public class HorizontalCardHolder : MonoBehaviour
     [SerializeField] private Button playButton;
     [SerializeField] private Button discardButton;
 
+    [SerializeField] private TurnManager turnManager;
+
     [SerializeField] private Card selectedCard;
     [SerializeField] private Card hoveredCard;
 
@@ -118,29 +120,30 @@ public class HorizontalCardHolder : MonoBehaviour
         return cards.Where(card => card != null && card.selected).ToList();
     }
 
-    public void PlaySelectedCards()
+ public void PlaySelectedCards()
+{
+    List<Card> selectedCards = GetSelectedCards();
+
+    if (selectedCards.Count == 0)
+        return;
+
+    foreach (Card card in selectedCards)
     {
-        List<Card> selectedCards = GetSelectedCards();
+        if (card == null)
+            continue;
 
-        if (selectedCards.Count == 0)
-            return;
+        card.Deselect();
+        cards.Remove(card);
 
-        foreach (Card card in selectedCards)
-        {
-            if (card == null)
-                continue;
-
-            cards.Remove(card);
-
-            if (card.transform.parent != null)
-                Destroy(card.transform.parent.gameObject);
-            else
-                Destroy(card.gameObject);
-        }
-
-        UpdateActionButtons();
+        turnManager.PlayCard(card);
     }
 
+    RefreshCardList();
+    UpdateActionButtons();
+
+    // 🔥 THIS ENDS THE TURN
+    turnManager.EndTurn();
+}
     public void DiscardSelectedCards()
     {
         List<Card> selectedCards = GetSelectedCards();
@@ -155,10 +158,7 @@ public class HorizontalCardHolder : MonoBehaviour
 
             cards.Remove(card);
 
-            if (card.transform.parent != null)
-                Destroy(card.transform.parent.gameObject);
-            else
-                Destroy(card.gameObject);
+            Destroy(card.gameObject);
         }
 
         UpdateActionButtons();
